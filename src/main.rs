@@ -1,5 +1,6 @@
 // extern crate blas_src;
 
+use std::time::Instant;
 use std::{env, fs::File, path::Path};
 use std::io::{BufReader, self, BufRead};
 use ndarray::{prelude::*, OwnedRepr};
@@ -30,11 +31,14 @@ impl Input {
 
 fn main() -> io::Result<()> {
     // input arguments from command line
+    let now = Instant::now();
     let args: Vec<String> = env::args().collect();
     let (n, m, g) = Input::new(&args[1])?;
-    let v = Array1::<i64>::from_vec(vec![0, 0, 0, 1, 1, 0]);
 
-    println!("{:?}", g.dot(&v));
+    let v = Array1::<i64>::from_vec(vec![0, 0, 0, 1, 1, 0]);
+    let result = g.dot(&v);
+    println!("{}ns", now.elapsed().as_nanos());
+    println!("{:?}", result);
 
     Ok(())
 }
