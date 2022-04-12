@@ -9,3 +9,4 @@ edition = "2021"
 num_cpus = "1.13.1"
 # ndarray = { version = "0.15.0", features = ["blas"] }
 ndarray = { version = "0.15.0" }
+bit_combi_iter = "1"
