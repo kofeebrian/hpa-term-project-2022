@@ -3,31 +3,44 @@ extern crate num_cpus;
 use std::time::Instant;
 use std::u128;
 use std::{env, fs::File, path::Path};
-use std::io::{BufReader, self, BufRead};
+use std::io::{BufReader, self, BufRead, Write};
 use std::thread;
+use std::sync::{Arc};
 
-// const NTHREADS: u32 = 8;
-struct Input {}
-impl Input {
-    fn new(input: &String) -> io::Result<(usize, usize, [u128; 100])> {
-        let f = File::open(Path::new(input))?;
-        let f = BufReader::new(f);
-        let mut lines = f.lines().map(|line| line.unwrap());
-        let n = lines.next().unwrap().parse::<usize>().unwrap();
-        let m = lines.next().unwrap().parse::<usize>().unwrap();
-        
-        let mut g= [0; 100]; 
+struct Input {
+    n: usize,
+    g: [u128; 100],
+}
 
-        for line in lines {
-            let temp = line.split_whitespace().flat_map(|num| num.parse::<usize>()).collect::<Vec<usize>>();
-            let a = temp[0];
-            let b = temp[1];
-            g[a] = g[a] | (1 as u128) << (b as u128);
-            g[b] = g[b] | (1 as u128) << (a as u128);
-        }
+fn read_input(input: &String) -> io::Result<Input> {
+    let f = File::open(Path::new(input))?;
+    let f = BufReader::new(f);
+    let mut lines = f.lines().map(|line| line.unwrap());
+    let n = lines.next().unwrap().parse::<usize>().unwrap();
+    let _ = lines.next();
+    
+    let mut g= [0; 100]; 
 
-        Ok((n, m, g))
+    for i in 0..n {
+        g[i] = 1u128 << i;
     }
+
+    for line in lines {
+        let temp = line.split_whitespace().flat_map(|num| num.parse::<usize>()).collect::<Vec<usize>>();
+        let a = temp[0];
+        let b = temp[1];
+        g[a] = g[a] | 1 << (b as u128);
+        g[b] = g[b] | 1 << (a as u128);
+    }
+
+    Ok(Input { n, g })
+}
+
+fn write_output(output: &String, val: u128) -> io::Result<()> {
+    let mut f = File::create(Path::new(output))?;
+    write!(f, "{}: {:0b}", val.count_ones(), val)?;
+
+    Ok(())
 }
 
 fn main() -> io::Result<()> {
@@ -38,23 +51,52 @@ fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect(); // Read input arguments
 
     // Read input file, n = number of nodes, m = number of edges, g = graph
-    let (n, _, g) = Input::new(&args[1])?; // Read input file
-    let nn = 1u128 << n - 1;
+    let input = Arc::new(read_input(&args[1])?); // Read input file
+    let nn = (1u128 << input.n) - 1u128; // 2 pow n
 
-    // let workers = vec![];
-    for i in 1..=nn {
+    let mut workers = vec![];
 
-        let sum = g.into_iter().take(n).map(|e| (((e & i) != 0) as usize)).sum::<usize>();
+    for i in 0..nthreads {
+        let input = Arc::clone(&input);
+        workers.push(thread::spawn(move || -> Option<u128> {
 
-        if sum == n {
-            println!("found {:#b}", i);
-        }
+            let mut ans = u128::MAX;
+            let mut found = false;
 
+            for j in (((i as u128) + 1)..=nn).step_by(nthreads) {
+                let sum = input.g.into_iter()
+                    .take(input.n)
+                    .map(|e| ((e & j) != 0) as usize)
+                    .sum::<usize>();
+
+                if sum == input.n {
+                    found = true;
+                    ans = u128::min(ans, j);
+                }
+            }
+
+            if found {
+                return Some(ans);
+            }
+
+            None
+        }));
     }
 
-    // let _ = workers.into_iter().map(|w| w.join());
+    let ans = workers.into_iter()
+        .filter_map(|w| w.join().unwrap())
+        .reduce(|acc, cur| {
+            if acc.count_ones() > cur.count_ones() {
+                return cur;
+            }
+            acc
+        });
+    
+    if let Some(val) = ans {
+        write_output(&args[2], val).ok();
+    }
 
-    println!("{}ns", now.elapsed().as_nanos());
+    println!("{}s", now.elapsed().as_secs_f64());
 
     Ok(())
 }
