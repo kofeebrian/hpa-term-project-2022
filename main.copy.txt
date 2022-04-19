@@ -1,7 +1,6 @@
-#![feature(unchecked_math)]
-
 extern crate num_cpus;
 
+// use std::time::Instant;
 use std::u128;
 use std::{env, fs::File, path::Path};
 use std::io::{self, Write, BufReader, BufRead, BufWriter};
@@ -9,7 +8,6 @@ use std::thread;
 use std::sync::Arc;
 
 static mut ANS: [u128; 101] = [0; 101];
-static mut MIN: u128 = u128::MAX;
 
 struct Input {
     n: usize,
@@ -43,7 +41,7 @@ fn read_input(input: &str) -> io::Result<Input> {
 fn write_output(output: &str, val: u128) -> io::Result<()> {
     let f = File::create(Path::new(output))?;
     let mut f = BufWriter::new(f);
-    writeln!(f, "{}: {:064b}", val.count_ones(), val)?;
+    writeln!(f, "{}: {:034b}", val.count_ones(), val)?;
 
     Ok(())
 }
@@ -63,24 +61,16 @@ fn main() -> io::Result<()> {
     for i in 0..nthreads {
         let input = Arc::clone(&input);
         workers.push(thread::spawn(move || {
+
             for j in (((i as u128) + 1)..=nn).step_by(nthreads) {
-
-                unsafe {
-                    if MIN.count_ones() <= j.count_ones() {
-                        continue;
-                    }
+                let mut sum = 0;
+                for k in input.g.iter().take(input.n) {
+                    sum += ((*k & j) != 0) as usize;
                 }
 
-                let mut sum : usize = 0;
-                for k in 0..(input.n) {
-                    unsafe {
-                        sum = sum.unchecked_add((( *input.g.get_unchecked(k) & j) != 0) as usize);
-                    }
-                }
-                
                 if sum == input.n {
+                    println!("found {}: {:034b}", j.count_ones(), j);
                     unsafe {
-                        MIN = j;
                         ANS[j.count_ones() as usize] = j;
                     }
                 }
@@ -88,13 +78,13 @@ fn main() -> io::Result<()> {
         }));
     }
 
-    for w in workers {
-        w.join().expect("Join Failed");
-    }
-
     unsafe {
-        let ans = ANS[MIN.count_ones() as usize];
-        write_output(&args[2], ans).ok();
+        for ans in ANS {
+            if ans != 0 {
+                write_output(&args[2], ans).ok();
+                break;
+            }
+        }
     }
 
     Ok(())
